@@ -816,6 +816,14 @@ sport_colours = {
     "Other": "#A5A5A5"
 }
 
+completed_background_colours = {
+    "Run": "#EAF4E3",
+    "Bike": "#FFF0E5",
+    "Swim": "#E7F3FB",
+    "Strength": "#F0EAF7",
+    "Other": "#F0F0F0"
+}
+
 
 def pretty_session_name(session_name):
     if session_name is None:
@@ -895,24 +903,35 @@ for day_number in range(7):
         == calendar_date.date()
     ]
 
-    if calendar_date.date() < today:
+        # Match completed activities against planned sessions one by one.
+    # A completed Run removes one planned Run, a completed Bike removes
+    # one planned Bike, and so on. Unmatched planned sessions remain.
+    remaining_planned_indices = list(day_planned.index)
 
-        if not day_activities.empty:
-            day_planned = day_planned.iloc[0:0]
-
-    elif calendar_date.date() == today:
-
-        completed_sports = set(
-            day_activities["Sport"]
-            .apply(calendar_sport_category)
-            .tolist()
+    for _, completed_activity in day_activities.iterrows():
+        completed_sport_category = calendar_sport_category(
+            completed_activity["Sport"]
         )
 
-        day_planned = day_planned[
-            ~day_planned["Sport"]
-            .apply(calendar_sport_category)
-            .isin(completed_sports)
-        ]
+        matching_planned_index = None
+
+        for planned_index in remaining_planned_indices:
+            planned_sport_category = calendar_sport_category(
+                day_planned.loc[planned_index, "Sport"]
+            )
+
+            if planned_sport_category == completed_sport_category:
+                matching_planned_index = planned_index
+                break
+
+        if matching_planned_index is not None:
+            remaining_planned_indices.remove(
+                matching_planned_index
+            )
+
+    day_planned = day_planned.loc[
+        remaining_planned_indices
+    ].copy()
 
     with calendar_columns[day_number]:
         st.markdown(
@@ -935,6 +954,13 @@ for day_number in range(7):
 
             icon = sport_icons[sport_category]
             colour = sport_colours[sport_category]
+
+            completed_background_colour = (
+                completed_background_colours.get(
+                    sport_category,
+                        "#F0F0F0"
+                )
+            )
 
             session_display = pretty_session_name(
                 activity["Session"]
@@ -963,7 +989,7 @@ for day_number in range(7):
                 f"""
                 <div style="
                     border-left: 5px solid {colour};
-                    background-color: rgba(128, 128, 128, 0.08);
+                    background-color: {completed_background_colour};
                     padding: 10px;
                     margin: 8px 0;
                     border-radius: 5px;
@@ -972,7 +998,7 @@ for day_number in range(7):
                     <div style="
                         font-size: 11px;
                         font-weight: 700;
-                        color: #357A38;
+                        color: {colour};
                         margin-bottom: 4px;
                     ">
                         COMPLETED
@@ -1002,6 +1028,11 @@ for day_number in range(7):
             planned_sport_category = calendar_sport_category(
                 planned_activity["Sport"]
             )
+
+            if calendar_date.date() < today:
+                planned_status = "MISSED"
+            else:
+                planned_status = "PLANNED"
 
             planned_icon = sport_icons.get(
                 planned_sport_category,
@@ -1138,6 +1169,13 @@ for day_number in range(7):
                 )
             )    
 
+            if planned_status == "MISSED":
+                status_colour = "#C62828"
+                planned_border_colour = "#D9534F"
+                planned_background_colour = "#FDECEC"
+            else:
+                status_colour = planned_border_colour
+
             planned_card_html = (
                 '<div style="'
                 f'border:1px dashed {planned_border_colour};'
@@ -1151,10 +1189,10 @@ for day_number in range(7):
                 '<div style="'
                 'font-size:11px;'
                 'font-weight:700;'
-                'color:#8A6D00;'
+                f'color:{status_colour};'
                 'margin-bottom:4px;'
                 '">'
-                'PLANNED'
+                f'{planned_status}'
                 '</div>'
                 '<div style="font-size:19px;">'
                 f'{planned_icon}'
