@@ -1,6 +1,7 @@
 import html
 import sqlite3
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -780,7 +781,7 @@ planned_col1.metric(
 
 planned_col2.metric(
     "Compliance",
-    f"{compliance_pct:.1f}%"
+    f"{compliance_pct:.0f}%"
 )
 
 planned_col3.metric(
@@ -875,6 +876,426 @@ def distance_text(distance_value, sport_category):
 
     return f"{distance_value:.1f} km"
 
+# --------------------------------------------------
+# Today & Tomorrow
+# --------------------------------------------------
+
+st.markdown("## Today & Tomorrow")
+
+# Use UK local time, including daylight-saving changes.
+app_today = pd.Timestamp.now(
+    tz=ZoneInfo("Europe/London")
+).date()
+
+app_tomorrow = app_today + timedelta(days=1)
+
+quick_view_dates = [
+    ("TODAY", app_today),
+    ("TOMORROW", app_tomorrow)
+]
+
+quick_view_columns = st.columns(
+    2,
+    gap="medium"
+)
+
+quick_view_planned_border_colours = {
+    "Run": "#9ACD32",
+    "Bike": "#F4A261",
+    "Swim": "#6EC5FF",
+    "Strength": "#B39DDB",
+    "Other": "#F2C94C"
+}
+
+quick_view_planned_background_colours = {
+    "Run": "#F2FBE8",
+    "Bike": "#FFF2E6",
+    "Swim": "#EAF7FF",
+    "Strength": "#F3EDFF",
+    "Other": "#FFF8D9"
+}
+
+
+def get_remaining_planned_sessions(
+    completed_day_df,
+    planned_day_df
+):
+    """
+    Match completed activities against planned sessions one by one,
+    using the standardised sport category.
+
+    Example:
+    Planned = Run + Bike
+    Completed = Run
+    Remaining = Bike
+    """
+
+    remaining_indices = list(
+        planned_day_df.index
+    )
+
+    for _, completed_activity in completed_day_df.iterrows():
+        completed_category = calendar_sport_category(
+            completed_activity["Sport"]
+        )
+
+        matching_index = None
+
+        for planned_index in remaining_indices:
+            planned_category = calendar_sport_category(
+                planned_day_df.loc[
+                    planned_index,
+                    "Sport"
+                ]
+            )
+
+            if planned_category == completed_category:
+                matching_index = planned_index
+                break
+
+        if matching_index is not None:
+            remaining_indices.remove(
+                matching_index
+            )
+
+    return planned_day_df.loc[
+        remaining_indices
+    ].copy()
+
+
+def completed_quick_card(activity):
+    sport_category = calendar_sport_category(
+        activity["Sport"]
+    )
+
+    icon = sport_icons.get(
+        sport_category,
+        "●"
+    )
+
+    border_colour = sport_colours.get(
+        sport_category,
+        "#A5A5A5"
+    )
+
+    background_colour = (
+        completed_background_colours.get(
+            sport_category,
+            "#F0F0F0"
+        )
+    )
+
+    session_name = pretty_session_name(
+        activity["Session"]
+    )
+
+    distance_display = distance_text(
+        activity["Distance (km)"],
+        sport_category
+    )
+
+    duration_display = compact_duration(
+        activity["Time"]
+    )
+
+    details = []
+
+    if distance_display:
+        details.append(distance_display)
+
+    if duration_display:
+        details.append(duration_display)
+
+    details_display = " · ".join(details)
+
+    safe_session_name = html.escape(
+        str(session_name)
+    )
+
+    safe_details = html.escape(
+        str(details_display)
+    )
+
+    details_section = ""
+
+    if safe_details:
+        details_section = (
+            '<div style="'
+            'font-size:14px;'
+            'margin-top:5px;'
+            '">'
+            f'{safe_details}'
+            '</div>'
+        )
+
+    return (
+        '<div style="'
+        f'border-left:6px solid {border_colour};'
+        f'background-color:{background_colour};'
+        'padding:12px;'
+        'margin:8px 0;'
+        'border-radius:7px;'
+        '">'
+        '<div style="'
+        'font-size:11px;'
+        'font-weight:700;'
+        f'color:{border_colour};'
+        'margin-bottom:5px;'
+        '">'
+        'COMPLETED'
+        '</div>'
+        '<div style="font-size:21px;">'
+        f'{icon}'
+        '</div>'
+        '<div style="'
+        'font-size:16px;'
+        'font-weight:650;'
+        '">'
+        f'{safe_session_name}'
+        '</div>'
+        f'{details_section}'
+        '</div>'
+    )
+
+
+def planned_quick_card(
+    planned_activity,
+    status_text
+):
+    sport_category = calendar_sport_category(
+        planned_activity["Sport"]
+    )
+
+    icon = sport_icons.get(
+        sport_category,
+        "●"
+    )
+
+    border_colour = (
+        quick_view_planned_border_colours.get(
+            sport_category,
+            "#F2C94C"
+        )
+    )
+
+    background_colour = (
+        quick_view_planned_background_colours.get(
+            sport_category,
+            "#FFF8D9"
+        )
+    )
+
+    session_name = pretty_session_name(
+        planned_activity["Session"]
+    )
+
+    if str(session_name).lower() == "nan":
+        session_name = "Strength"
+
+    planned_distance = planned_activity[
+        "Planned Distance"
+    ]
+
+    planned_time = planned_activity[
+        "Planned Time"
+    ]
+
+    planned_notes = planned_activity[
+        "Notes"
+    ]
+
+    details = []
+
+    if pd.notna(planned_distance):
+        try:
+            distance_number = float(
+                planned_distance
+            )
+
+            if distance_number > 0:
+                if sport_category == "Swim":
+                    details.append(
+                        f"{distance_number:.2f} km"
+                    )
+                else:
+                    details.append(
+                        f"{distance_number:g} km"
+                    )
+
+        except (TypeError, ValueError):
+            pass
+
+    if pd.notna(planned_time):
+        time_text = str(
+            planned_time
+        ).strip()
+
+        if (
+            time_text
+            and time_text.lower() != "nan"
+        ):
+            details.append(
+                f"{time_text} min"
+            )
+
+    details_display = " · ".join(
+        details
+    )
+
+    notes_display = ""
+
+    if pd.notna(planned_notes):
+        notes_text = str(
+            planned_notes
+        ).strip()
+
+        if (
+            notes_text
+            and notes_text.lower() != "nan"
+        ):
+            notes_display = notes_text
+
+    safe_session_name = html.escape(
+        str(session_name)
+    )
+
+    safe_details = html.escape(
+        str(details_display)
+    )
+
+    safe_notes = html.escape(
+        str(notes_display)
+    )
+
+    details_section = ""
+
+    if safe_details:
+        details_section = (
+            '<div style="'
+            'font-size:14px;'
+            'font-weight:650;'
+            'margin-top:5px;'
+            '">'
+            f'{safe_details}'
+            '</div>'
+        )
+
+    notes_section = ""
+
+    if safe_notes:
+        notes_section = (
+            '<div style="'
+            'font-size:13px;'
+            'line-height:1.4;'
+            'margin-top:7px;'
+            'color:#595959;'
+            '">'
+            f'{safe_notes}'
+            '</div>'
+        )
+
+    return (
+        '<div style="'
+        f'border:1px dashed {border_colour};'
+        f'border-left:6px solid {border_colour};'
+        f'background-color:{background_colour};'
+        'padding:12px;'
+        'margin:8px 0;'
+        'border-radius:7px;'
+        '">'
+        '<div style="'
+        'font-size:11px;'
+        'font-weight:700;'
+        f'color:{border_colour};'
+        'margin-bottom:5px;'
+        '">'
+        f'{html.escape(status_text)}'
+        '</div>'
+        '<div style="font-size:21px;">'
+        f'{icon}'
+        '</div>'
+        '<div style="'
+        'font-size:16px;'
+        'font-weight:650;'
+        '">'
+        f'{safe_session_name}'
+        '</div>'
+        f'{details_section}'
+        f'{notes_section}'
+        '</div>'
+    )
+
+
+for quick_column, (
+    day_label,
+    quick_date
+) in zip(
+    quick_view_columns,
+    quick_view_dates
+):
+
+    quick_completed = calendar_df[
+        calendar_df["Date"].dt.date
+        == quick_date
+    ].copy()
+
+    quick_planned = planned_df[
+        planned_df["Date"].dt.date
+        == quick_date
+    ].copy()
+
+    quick_remaining = (
+        get_remaining_planned_sessions(
+            quick_completed,
+            quick_planned
+        )
+    )
+
+    with quick_column:
+        st.markdown(
+            f"### {day_label}"
+        )
+
+        st.caption(
+            pd.Timestamp(
+                quick_date
+            ).strftime(
+                "%A, %d %B %Y"
+            )
+        )
+
+        if (
+            quick_completed.empty
+            and quick_remaining.empty
+        ):
+            st.info(
+                "No training scheduled."
+            )
+
+        for _, activity in quick_completed.iterrows():
+            st.markdown(
+                completed_quick_card(
+                    activity
+                ),
+                unsafe_allow_html=True
+            )
+
+        for _, planned_activity in quick_remaining.iterrows():
+
+            if day_label == "TODAY":
+                quick_status = "TO DO TODAY"
+            else:
+                quick_status = "PLANNED TOMORROW"
+
+            st.markdown(
+                planned_quick_card(
+                    planned_activity,
+                    quick_status
+                ),
+                unsafe_allow_html=True
+            )
+
+st.divider()
 
 calendar_columns = st.columns(7)
 
