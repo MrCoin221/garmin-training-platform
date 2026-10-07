@@ -1032,7 +1032,7 @@ def completed_quick_card(activity):
         '<div style="'
         f'border-left:6px solid {border_colour};'
         f'background-color:{background_colour};'
-        'padding:12px;'
+        'padding:8px;'
         'margin:8px 0;'
         'border-radius:7px;'
         '">'
@@ -1199,7 +1199,7 @@ def planned_quick_card(
         f'border:1px dashed {border_colour};'
         f'border-left:6px solid {border_colour};'
         f'background-color:{background_colour};'
-        'padding:12px;'
+        'padding:8px;'
         'margin:8px 0;'
         'border-radius:7px;'
         '">'
@@ -1285,7 +1285,7 @@ for quick_column, (
             if day_label == "TODAY":
                 quick_status = "TO DO TODAY"
             else:
-                quick_status = "PLANNED TOMORROW"
+                quick_status = "TOMORROW"
 
             st.markdown(
                 planned_quick_card(
