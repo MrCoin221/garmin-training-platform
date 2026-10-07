@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+
+*.fit
+*.FIT
+
+output/*.db-journal
+output/*.db-wal
+output/*.db-shm
+
+*.pyc
+```
