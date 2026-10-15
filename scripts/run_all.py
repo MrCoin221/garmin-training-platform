@@ -7,6 +7,7 @@ scripts_to_run = [
     "lap_analysis.py",
     "tempo_work_block_analysis.py",
     "trend_analysis.py",
+    "hr_drift_analysis.py",
 ]
 
 project_root = Path(__file__).resolve().parent.parent
@@ -52,3 +53,4 @@ print("- session_summary.xlsx")
 print("- lap_summary.xlsx")
 print("- tempo_work_block_summary.xlsx")
 print("- trend_summary.xlsx")
+print("- hr_drift_summary.xlsx")
