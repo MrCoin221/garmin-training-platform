@@ -775,6 +775,12 @@ def main():
         }:
             analysis_session_type = "Park Run"
 
+        elif session_type_key in {
+            "race day",
+            "race"
+        }:
+            analysis_session_type = "Race Day"    
+
         else:
             continue
 
@@ -886,7 +892,10 @@ def main():
 
         # Park Runs are only suitable for Easy HR Drift
         # when a steady analysis segment is configured.
-        if session_type == "Park Run":
+        if session_type in {
+            "Park Run",
+            "Race Day"
+        }:
             if not drift_instruction:
                 continue
 
